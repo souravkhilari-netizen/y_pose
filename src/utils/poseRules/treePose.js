@@ -6,17 +6,68 @@ import {
   isLandmarkVisible,
 } from '../poseMath';
 
-const REQUIRED_INDEXES = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+const REQUIRED_INDEXES = [0, 11, 12, 15, 16, 23, 24, 25, 26, 27, 28];
 
-function clampPenalty(value, maximumPenalty) {
-  return Math.max(0, Math.min(maximumPenalty, value));
+function clamp(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
 }
 
-function getFootPlacementScore(liftedFoot, supportKnee, supportHip, torsoSize) {
-  const footToKnee = getDistance(liftedFoot, supportKnee) / torsoSize;
-  const footToHip = getDistance(liftedFoot, supportHip) / torsoSize;
+function toUnitRange(value, minimum, maximum) {
+  if (maximum === minimum) {
+    return 0;
+  }
 
-  return Math.min(footToKnee, footToHip);
+  return clamp((value - minimum) / (maximum - minimum), 0, 1);
+}
+
+function evaluateSide(landmarks, supportSide, torsoSize) {
+  const supportHip = supportSide === 'left' ? landmarks[23] : landmarks[24];
+  const supportKnee = supportSide === 'left' ? landmarks[25] : landmarks[26];
+  const supportAnkle = supportSide === 'left' ? landmarks[27] : landmarks[28];
+  const liftedHip = supportSide === 'left' ? landmarks[24] : landmarks[23];
+  const liftedKnee = supportSide === 'left' ? landmarks[26] : landmarks[25];
+  const liftedAnkle = supportSide === 'left' ? landmarks[28] : landmarks[27];
+
+  const supportLegAngle = getAngle(supportHip, supportKnee, supportAnkle);
+  const bentLegAngle = getAngle(liftedHip, liftedKnee, liftedAnkle);
+  const footLiftHeight = (supportAnkle.y - liftedAnkle.y) / torsoSize;
+  const inwardFootDistance = Math.abs(liftedAnkle.x - supportHip.x) / torsoSize;
+  const liftedKneeDistance = Math.abs(liftedKnee.x - supportHip.x) / torsoSize;
+  const footToSupportKnee = getDistance(liftedAnkle, supportKnee) / torsoSize;
+  const footToSupportHip = getDistance(liftedAnkle, supportHip) / torsoSize;
+
+  const standingLegScore = toUnitRange(supportLegAngle, 158, 178);
+  const bentLegScore = 1 - toUnitRange(bentLegAngle, 128, 172);
+  const footLiftScore = toUnitRange(footLiftHeight, 0.1, 0.55);
+  const inwardPlacementScore = 1 - toUnitRange(inwardFootDistance, 0.1, 0.7);
+  const kneeOpenScore = toUnitRange(liftedKneeDistance, 0.12, 0.45);
+  const footPlacementHeightScore =
+    1 - clamp(Math.min(footToSupportKnee, footToSupportHip) / 1.2, 0, 1);
+
+  // Tree Pose should look like one stable leg and one clearly bent lifted leg.
+  const structuralScore =
+    standingLegScore * 0.3 +
+    bentLegScore * 0.28 +
+    footLiftScore * 0.2 +
+    inwardPlacementScore * 0.12 +
+    kneeOpenScore * 0.06 +
+    footPlacementHeightScore * 0.04;
+
+  return {
+    supportSide,
+    supportLegAngle,
+    bentLegAngle,
+    footLiftHeight,
+    inwardFootDistance,
+    liftedKneeDistance,
+    footToSupportKnee,
+    footToSupportHip,
+    standingLegScore,
+    bentLegScore,
+    footLiftScore,
+    inwardPlacementScore,
+    structuralScore,
+  };
 }
 
 export function evaluateTreePose(landmarks) {
@@ -42,103 +93,101 @@ export function evaluateTreePose(landmarks) {
   const leftAnkle = landmarks[27];
   const rightAnkle = landmarks[28];
 
+  const torsoSize = getNormalizedTorsoSize(landmarks);
   const shoulderCenter = getMidpoint(leftShoulder, rightShoulder);
   const hipCenter = getMidpoint(leftHip, rightHip);
-  const torsoSize = getNormalizedTorsoSize(landmarks);
+  const leftCandidate = evaluateSide(landmarks, 'left', torsoSize);
+  const rightCandidate = evaluateSide(landmarks, 'right', torsoSize);
+  const activeCandidate =
+    leftCandidate.structuralScore >= rightCandidate.structuralScore ? leftCandidate : rightCandidate;
 
-  const leftKneeAngle = getAngle(leftHip, leftKnee, leftAnkle);
-  const rightKneeAngle = getAngle(rightHip, rightKnee, rightAnkle);
-  const standingSide = leftKneeAngle >= rightKneeAngle ? 'left' : 'right';
+  const bothLegsStraight =
+    leftCandidate.supportLegAngle > 164 &&
+    rightCandidate.supportLegAngle > 164 &&
+    leftCandidate.bentLegAngle > 150 &&
+    rightCandidate.bentLegAngle > 150;
+  const bothFeetLow = Math.abs(leftAnkle.y - rightAnkle.y) / torsoSize < 0.12;
+  const noClearlyLiftedLeg = activeCandidate.footLiftHeight < 0.12 || activeCandidate.bentLegAngle > 148;
+  const noInwardPlacement = activeCandidate.inwardFootDistance > 0.48;
+  const isProbablyJustStanding =
+    bothLegsStraight && bothFeetLow && noClearlyLiftedLeg && noInwardPlacement;
 
-  const supportHip = standingSide === 'left' ? leftHip : rightHip;
-  const supportKnee = standingSide === 'left' ? leftKnee : rightKnee;
-  const supportAnkle = standingSide === 'left' ? leftAnkle : rightAnkle;
-  const liftedHip = standingSide === 'left' ? rightHip : leftHip;
-  const liftedKnee = standingSide === 'left' ? rightKnee : leftKnee;
-  const liftedAnkle = standingSide === 'left' ? rightAnkle : leftAnkle;
-
-  const supportLegAngle = standingSide === 'left' ? leftKneeAngle : rightKneeAngle;
-  const liftedLegAngle = standingSide === 'left' ? rightKneeAngle : leftKneeAngle;
-  const shoulderTilt = Math.abs(leftShoulder.y - rightShoulder.y) / torsoSize;
-  const hipTilt = Math.abs(leftHip.y - rightHip.y) / torsoSize;
   const uprightOffset =
     (Math.abs(shoulderCenter.x - hipCenter.x) + Math.abs(nose.x - hipCenter.x)) / 2 / torsoSize;
-  const wristHeight =
-    ((leftShoulder.y - leftWrist.y) + (rightShoulder.y - rightWrist.y)) / 2 / torsoSize;
-  const armSpread = Math.abs(leftWrist.x - rightWrist.x) / torsoSize;
-  const footPlacementScore = getFootPlacementScore(liftedAnkle, supportKnee, supportHip, torsoSize);
-  const bodyCenterOffset = Math.abs(hipCenter.x - 0.5) / torsoSize;
-  const liftedKneeLift = Math.abs(liftedKnee.x - hipCenter.x) / torsoSize;
-  const supportFootDrift = Math.abs(supportAnkle.x - supportHip.x) / torsoSize;
-  const liftedFootHeight = Math.abs(liftedHip.y - liftedAnkle.y) / torsoSize;
+  const shoulderTilt = Math.abs(leftShoulder.y - rightShoulder.y) / torsoSize;
+  const hipTilt = Math.abs(leftHip.y - rightHip.y) / torsoSize;
+  const wristsAboveShoulders =
+    leftWrist.y < leftShoulder.y - torsoSize * 0.03 && rightWrist.y < rightShoulder.y - torsoSize * 0.03;
+  const armsUp = wristsAboveShoulders;
 
-  let score = 100;
+  const torsoScore =
+    (1 - clamp(uprightOffset / 0.18, 0, 1)) * 0.55 +
+    (1 - clamp(shoulderTilt / 0.12, 0, 1)) * 0.25 +
+    (1 - clamp(hipTilt / 0.12, 0, 1)) * 0.2;
 
-  // Tree Pose still needs a tall stacked torso like Mountain Pose.
-  score -= clampPenalty(uprightOffset * 130, 20);
+  let score = activeCandidate.structuralScore * 78 + torsoScore * 22 + (armsUp ? 6 : 0);
 
-  // Balanced hips and shoulders help show steady balance.
-  score -= clampPenalty(shoulderTilt * 140, 15);
-  score -= clampPenalty(hipTilt * 120, 14);
+  // If the body still looks too much like Mountain Pose, keep the Tree score low.
+  if (isProbablyJustStanding) {
+    score = Math.min(score, 24);
+  }
 
-  // The support leg should stay straight and stable.
-  score -= clampPenalty((172 - supportLegAngle) * 0.45, 12);
+  if (activeCandidate.bentLegScore < 0.35 || activeCandidate.footLiftScore < 0.28) {
+    score = Math.min(score, 42);
+  }
 
-  // The lifted leg should bend and draw inward toward the standing leg.
-  score -= clampPenalty((liftedLegAngle - 125) * 0.28, 12);
-  score -= clampPenalty((footPlacementScore - 0.95) * 18, 14);
-  score -= clampPenalty((0.22 - liftedKneeLift) * 30, 8);
-  score -= clampPenalty((0.45 - liftedFootHeight) * 24, 9);
+  if (activeCandidate.inwardPlacementScore < 0.22) {
+    score = Math.min(score, 52);
+  }
 
-  // Arms are considered good when they rise above the shoulders with calm spacing.
-  score -= clampPenalty((0.22 - wristHeight) * 50, 12);
-  score -= clampPenalty((0.45 - armSpread) * 22, 8);
-
-  // A small centering rule helps the whole pose stay visible in frame.
-  score -= clampPenalty((bodyCenterOffset - 0.18) * 36, 10);
-  score -= clampPenalty((supportFootDrift - 0.18) * 30, 7);
+  score = clamp(Math.round(score), 0, 100);
 
   const feedbackMessages = [];
 
-  if (uprightOffset > 0.12) {
-    feedbackMessages.push('Stand taller through your spine');
+  if (isProbablyJustStanding) {
+    feedbackMessages.push('Lift one foot higher on the standing leg');
+    feedbackMessages.push('Bend the lifted leg more');
+  } else {
+    if (activeCandidate.footLiftHeight < 0.18 || activeCandidate.inwardPlacementScore < 0.35) {
+      feedbackMessages.push('Lift one foot higher on the standing leg');
+    }
+
+    if (activeCandidate.bentLegAngle > 140) {
+      feedbackMessages.push('Bend the lifted leg more');
+    }
+
+    if (activeCandidate.standingLegScore < 0.45) {
+      feedbackMessages.push('Keep one leg straight and stable');
+    }
   }
 
-  if (shoulderTilt > 0.07 || hipTilt > 0.08) {
-    feedbackMessages.push('Keep your hips and shoulders level');
+  if (uprightOffset > 0.13 || shoulderTilt > 0.08 || hipTilt > 0.08) {
+    feedbackMessages.push('Stand upright and find your balance');
   }
 
-  if (supportLegAngle < 170) {
-    feedbackMessages.push('Press strongly through your standing leg');
+  if (!armsUp) {
+    feedbackMessages.push('Raise your arms for a more complete Tree Pose');
   }
 
-  if (liftedLegAngle > 132 || footPlacementScore > 1.05 || liftedFootHeight < 0.42) {
-    feedbackMessages.push('Place your lifted foot higher on the opposite leg');
-  }
-
-  if (wristHeight < 0.2 || armSpread < 0.4) {
-    feedbackMessages.push('Reach both arms upward');
-  }
-
-  if (bodyCenterOffset > 0.24) {
-    feedbackMessages.push('Stand centered in the camera frame');
-  }
-
-  if (!feedbackMessages.length || score >= 88) {
+  if (score >= 84 && !isProbablyJustStanding) {
     feedbackMessages.unshift('Nice balance, hold your Tree Pose steady');
   }
 
   return {
-    score: Math.max(0, Math.min(100, Math.round(score))),
+    score,
     feedbackMessages: feedbackMessages.slice(0, 4),
     debug: {
-      standingSide,
-      supportLegAngle: Number(supportLegAngle.toFixed(1)),
-      liftedLegAngle: Number(liftedLegAngle.toFixed(1)),
+      detectedSide: activeCandidate.supportSide,
+      standingLegAngle: Number(activeCandidate.supportLegAngle.toFixed(1)),
+      bentLegAngle: Number(activeCandidate.bentLegAngle.toFixed(1)),
+      footLiftHeight: Number(activeCandidate.footLiftHeight.toFixed(2)),
+      inwardFootDistance: Number(activeCandidate.inwardFootDistance.toFixed(2)),
+      armsUp,
+      isProbablyJustStanding,
+      torsoUprightOffset: Number(uprightOffset.toFixed(2)),
       shoulderTilt: Number(shoulderTilt.toFixed(2)),
       hipTilt: Number(hipTilt.toFixed(2)),
-      wristHeight: Number(wristHeight.toFixed(2)),
-      footPlacementScore: Number(footPlacementScore.toFixed(2)),
+      structuralScore: Number(activeCandidate.structuralScore.toFixed(2)),
     },
   };
 }
