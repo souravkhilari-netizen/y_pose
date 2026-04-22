@@ -13,11 +13,14 @@ function PoseSelectionPage() {
   };
 
   return (
-    <section className="section">
-      <div className="section__heading">
+    <section className="section section--selection">
+      <div className="section__heading section__heading--wide">
         <p className="eyebrow">Step 1</p>
         <h1>Select a Pose</h1>
-        <p>Choose one sample pose to enter the practice screen.</p>
+        <p>
+          Choose a guided pose to open the live practice view with reference imagery,
+          camera tracking, and real-time feedback.
+        </p>
       </div>
 
       <div className="pose-grid">

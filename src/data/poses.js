@@ -9,7 +9,7 @@ export const poses = [
   {
     id: 'tree-pose',
     name: 'Tree Pose',
-    image: '/poses/tree.svg',
+    image: '/poses/tree.png',
     description:
       'A balancing posture where one foot rests on the opposite leg and hands can rise upward.',
     benefits: 'Builds balance, concentration, and lower-body control.',

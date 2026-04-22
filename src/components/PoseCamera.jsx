@@ -2,6 +2,22 @@ import { useEffect, useRef, useState } from 'react';
 import { createPoseLandmarker, POSE_MODEL_PATH, PoseLandmarker } from '../utils/poseLandmarker';
 import { clearPoseCanvas, drawPoseResult, resizeCanvasToDisplaySize } from '../utils/drawPose';
 import { evaluateMountainPose } from '../utils/poseRules/mountainPose';
+import { evaluateTreePose } from '../utils/poseRules/treePose';
+
+const EVALUATORS = {
+  'mountain-pose': {
+    mode: 'mountain',
+    summary: 'Live Mountain Pose feedback based on simple body-alignment rules.',
+    emptySummary: 'Move into frame so Mountain Pose can be evaluated.',
+    evaluator: evaluateMountainPose,
+  },
+  'tree-pose': {
+    mode: 'tree',
+    summary: 'Live Tree Pose feedback based on simple balance and alignment rules.',
+    emptySummary: 'Move into frame so Tree Pose can be evaluated.',
+    evaluator: evaluateTreePose,
+  },
+};
 
 function PoseCamera({ selectedPoseId, onEvaluationChange }) {
   const videoRef = useRef(null);
@@ -64,15 +80,17 @@ function PoseCamera({ selectedPoseId, onEvaluationChange }) {
     };
 
     const resetFeedbackForCurrentPose = () => {
+      const activeEvaluator = EVALUATORS[selectedPoseId];
+
       feedbackHistoryRef.current = [];
       lastFeedbackUpdateRef.current = 0;
 
-      if (selectedPoseId === 'mountain-pose') {
+      if (activeEvaluator) {
         emitEvaluation({
-          mode: 'mountain',
+          mode: activeEvaluator.mode,
           score: 0,
           messages: ['Stand fully in front of the camera'],
-          summary: 'Move into frame so Mountain Pose can be evaluated.',
+          summary: activeEvaluator.emptySummary,
         });
         return;
       }
@@ -116,10 +134,12 @@ function PoseCamera({ selectedPoseId, onEvaluationChange }) {
         .slice(0, 4);
 
       emitEvaluation({
-        mode: 'mountain',
+        mode: EVALUATORS[selectedPoseId]?.mode || 'evaluation',
         score: averageScore,
         messages: smoothedMessages.length ? smoothedMessages : ['Good alignment, hold steady'],
-        summary: 'Live Mountain Pose feedback based on simple body-alignment rules.',
+        summary:
+          EVALUATORS[selectedPoseId]?.summary ||
+          'Live pose feedback based on simple body-alignment rules.',
         debug: evaluation.debug,
       });
     };
@@ -210,9 +230,9 @@ function PoseCamera({ selectedPoseId, onEvaluationChange }) {
 
           if (!primaryPose.length) {
             resetFeedbackForCurrentPose();
-          } else if (selectedPoseId === 'mountain-pose') {
-            // We only run rule-based scoring for Mountain Pose right now.
-            const evaluation = evaluateMountainPose(primaryPose);
+          } else if (EVALUATORS[selectedPoseId]) {
+            // Each supported pose uses a small rule set based on landmark geometry only.
+            const evaluation = EVALUATORS[selectedPoseId].evaluator(primaryPose);
             pushSmoothedMountainFeedback(evaluation);
           } else {
             emitEvaluation({
