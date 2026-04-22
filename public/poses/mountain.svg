@@ -1,0 +1,84 @@
+<svg width="640" height="820" viewBox="0 0 640 820" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="640" height="820" rx="36" fill="#EAF4EC"/>
+  <!-- Card -->
+  <rect x="20" y="20" width="600" height="780" rx="28" fill="#FFFFFF" stroke="#C3DCC7" stroke-width="2"/>
+
+  <!-- Shadow under feet -->
+  <ellipse cx="320" cy="692" rx="68" ry="12" fill="#C9DFC9" opacity="0.6"/>
+
+  <!-- === BODY (Mountain Pose / Tadasana) === -->
+  <!-- Left foot -->
+  <ellipse cx="295" cy="685" rx="28" ry="10" fill="#C8956C"/>
+  <!-- Right foot -->
+  <ellipse cx="345" cy="685" rx="28" ry="10" fill="#C8956C"/>
+
+  <!-- Left lower leg -->
+  <rect x="281" y="590" width="28" height="100" rx="14" fill="#D9A97C"/>
+  <!-- Right lower leg -->
+  <rect x="331" y="590" width="28" height="100" rx="14" fill="#D9A97C"/>
+
+  <!-- Left knee -->
+  <circle cx="295" cy="590" r="16" fill="#C8956C"/>
+  <!-- Right knee -->
+  <circle cx="345" cy="590" r="16" fill="#C8956C"/>
+
+  <!-- Left upper leg / thigh -->
+  <rect x="281" y="480" width="28" height="120" rx="14" fill="#4A7C59"/>
+  <!-- Right upper leg / thigh -->
+  <rect x="331" y="480" width="28" height="120" rx="14" fill="#4A7C59"/>
+
+  <!-- Hips / pelvis block -->
+  <rect x="272" y="465" width="96" height="40" rx="18" fill="#3A6B4A"/>
+
+  <!-- Torso -->
+  <rect x="285" y="310" width="70" height="165" rx="22" fill="#4A7C59"/>
+
+  <!-- Left upper arm -->
+  <rect x="238" y="315" width="26" height="100" rx="13" fill="#4A7C59"/>
+  <!-- Right upper arm -->
+  <rect x="376" y="315" width="26" height="100" rx="13" fill="#4A7C59"/>
+
+  <!-- Left elbow -->
+  <circle cx="251" cy="415" r="14" fill="#3A6B4A"/>
+  <!-- Right elbow -->
+  <circle cx="389" cy="415" r="14" fill="#3A6B4A"/>
+
+  <!-- Left forearm (arms along sides) -->
+  <rect x="238" y="410" width="26" height="90" rx="13" fill="#D9A97C"/>
+  <!-- Right forearm -->
+  <rect x="376" y="410" width="26" height="90" rx="13" fill="#D9A97C"/>
+
+  <!-- Left hand -->
+  <ellipse cx="251" cy="507" rx="14" ry="10" fill="#C8956C"/>
+  <!-- Right hand -->
+  <ellipse cx="389" cy="507" rx="14" ry="10" fill="#C8956C"/>
+
+  <!-- Neck -->
+  <rect x="308" y="278" width="24" height="42" rx="12" fill="#D9A97C"/>
+
+  <!-- Head -->
+  <ellipse cx="320" cy="248" rx="46" ry="54" fill="#D9A97C"/>
+
+  <!-- Face details -->
+  <!-- Hair -->
+  <ellipse cx="320" cy="205" rx="46" ry="22" fill="#4A2C0A"/>
+  <rect x="274" y="205" width="92" height="20" rx="0" fill="#4A2C0A"/>
+  <!-- Eyes -->
+  <ellipse cx="304" cy="248" rx="7" ry="8" fill="#FFFFFF"/>
+  <ellipse cx="336" cy="248" rx="7" ry="8" fill="#FFFFFF"/>
+  <circle cx="306" cy="249" r="4" fill="#2C180A"/>
+  <circle cx="338" cy="249" r="4" fill="#2C180A"/>
+  <!-- Nose -->
+  <path d="M316 262 Q320 270 324 262" stroke="#B07050" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <!-- Mouth (calm smile) -->
+  <path d="M308 278 Q320 286 332 278" stroke="#B07050" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+
+  <!-- === GROUND LINE === -->
+  <line x1="200" y1="695" x2="440" y2="695" stroke="#A8C8AA" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- === Label === -->
+  <rect x="160" y="726" width="320" height="56" rx="16" fill="#3A6B4A"/>
+  <text x="320" y="750" text-anchor="middle" fill="#FFFFFF" font-family="Georgia, serif" font-size="22" font-weight="700">Mountain Pose</text>
+  <text x="320" y="772" text-anchor="middle" fill="#C3E6C7" font-family="Arial, sans-serif" font-size="15">Tadasana • Stand tall, feet together</text>
+</svg>
