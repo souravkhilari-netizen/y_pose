@@ -2,7 +2,7 @@ export const poses = [
   {
     id: 'mountain-pose',
     name: 'Mountain Pose',
-    image: '/poses/mountain.svg',
+    image: '/poses/mountain.png',
     description: 'A simple standing posture for body alignment and balance.',
     benefits: 'Helps improve posture, stability, and body awareness.',
   },
