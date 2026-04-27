@@ -4,6 +4,7 @@ function FeedbackPanel({ poseName, className = '', evaluation }) {
     : ['Live feedback will appear here once evaluation is active.'];
   const isPositive = messages[0]?.toLowerCase().includes('good') || messages[0]?.toLowerCase().includes('nice');
   const debugEntries = import.meta.env.DEV && evaluation?.debug ? Object.entries(evaluation.debug) : [];
+  const isLowScore = typeof evaluation?.score === 'number' && evaluation.score < 60;
 
   return (
     <section className={`practice-panel ${className}`.trim()}>
@@ -21,7 +22,7 @@ function FeedbackPanel({ poseName, className = '', evaluation }) {
       </p>
       <div className={`score-card ${isPositive ? 'score-card--positive' : ''}`}>
         <span className="score-card__label">Live Score</span>
-        <span className="score-card__value">
+        <span className={`score-card__value ${isLowScore ? 'score-card__value--low' : ''}`.trim()}>
           {typeof evaluation?.score === 'number' ? `${evaluation.score}/100` : '--'}
         </span>
       </div>

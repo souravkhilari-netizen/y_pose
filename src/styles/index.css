@@ -653,6 +653,11 @@ h1 {
   color: var(--primary-dark);
   font-size: 1.9rem;
   font-weight: 700;
+  transition: color 0.24s ease;
+}
+
+.score-card__value--low {
+  color: #b54747;
 }
 
 .practice-note {
