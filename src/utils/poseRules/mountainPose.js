@@ -8,8 +8,16 @@ import {
 
 const REQUIRED_INDEXES = [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
 
-function clampPenalty(value, maximumPenalty) {
-  return Math.max(0, Math.min(maximumPenalty, value));
+function clamp(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+function toScore(value, minimum, maximum) {
+  if (maximum === minimum) {
+    return 0;
+  }
+
+  return clamp((value - minimum) / (maximum - minimum), 0, 1);
 }
 
 export function evaluateMountainPose(landmarks) {
@@ -41,84 +49,133 @@ export function evaluateMountainPose(landmarks) {
   const hipCenter = getMidpoint(leftHip, rightHip);
   const torsoSize = getNormalizedTorsoSize(landmarks);
 
-  const shoulderTilt = Math.abs(leftShoulder.y - rightShoulder.y) / torsoSize;
-  const uprightOffset =
+  const torsoUpright =
     (Math.abs(shoulderCenter.x - hipCenter.x) + Math.abs(nose.x - hipCenter.x)) / 2 / torsoSize;
+  const shoulderTilt = Math.abs(leftShoulder.y - rightShoulder.y) / torsoSize;
+  const hipTilt = Math.abs(leftHip.y - rightHip.y) / torsoSize;
+  const leftLegAngle = getAngle(leftHip, leftKnee, leftAnkle);
+  const rightLegAngle = getAngle(rightHip, rightKnee, rightAnkle);
   const leftArmAngle = getAngle(leftShoulder, leftElbow, leftWrist);
   const rightArmAngle = getAngle(rightShoulder, rightElbow, rightWrist);
-  const leftKneeAngle = getAngle(leftHip, leftKnee, leftAnkle);
-  const rightKneeAngle = getAngle(rightHip, rightKnee, rightAnkle);
-  const leftWristToHip = getDistance(leftWrist, leftHip) / torsoSize;
-  const rightWristToHip = getDistance(rightWrist, rightHip) / torsoSize;
-  const wristDrop =
-    ((leftWrist.y - leftShoulder.y) + (rightWrist.y - rightShoulder.y)) / 2 / torsoSize;
+
+  const leftWristBelowShoulder = leftWrist.y > leftShoulder.y;
+  const rightWristBelowShoulder = rightWrist.y > rightShoulder.y;
+  const leftWristNearHip = getDistance(leftWrist, leftHip) / torsoSize;
+  const rightWristNearHip = getDistance(rightWrist, rightHip) / torsoSize;
+  const leftWristNearThigh = getDistance(leftWrist, leftKnee) / torsoSize;
+  const rightWristNearThigh = getDistance(rightWrist, rightKnee) / torsoSize;
+  const leftArmCloseToSide = Math.abs(leftWrist.x - leftHip.x) / torsoSize;
+  const rightArmCloseToSide = Math.abs(rightWrist.x - rightHip.x) / torsoSize;
   const bodyCenterOffset = Math.abs(hipCenter.x - 0.5) / torsoSize;
 
-  let score = 100;
+  const bothWristsAboveShoulders = leftWrist.y < leftShoulder.y && rightWrist.y < rightShoulder.y;
+  const oneWristAboveShoulder = leftWrist.y < leftShoulder.y || rightWrist.y < rightShoulder.y;
 
-  // Upright posture checks whether the head, shoulders, and hips stay stacked.
-  score -= clampPenalty(uprightOffset * 130, 22);
+  const torsoPoints =
+    (1 - clamp(torsoUpright / 0.18, 0, 1)) * 20;
 
-  // Level shoulders suggest a balanced standing position.
-  score -= clampPenalty(shoulderTilt * 150, 18);
+  const levelPoints =
+    ((1 - clamp(shoulderTilt / 0.12, 0, 1)) * 0.55 +
+      (1 - clamp(hipTilt / 0.12, 0, 1)) * 0.45) * 20;
 
-  // In Mountain Pose, the arms should hang fairly straight and close to the hips.
-  score -= clampPenalty((170 - leftArmAngle) * 0.45, 10);
-  score -= clampPenalty((170 - rightArmAngle) * 0.45, 10);
-  score -= clampPenalty((0.95 - leftWristToHip) * 18, 8);
-  score -= clampPenalty((0.95 - rightWristToHip) * 18, 8);
-  score -= clampPenalty((1.05 - wristDrop) * 24, 10);
+  const legPoints =
+    ((toScore(leftLegAngle, 158, 178) + toScore(rightLegAngle, 158, 178)) / 2) * 25;
 
-  // Straighter knees usually indicate a more stable vertical posture.
-  score -= clampPenalty((170 - leftKneeAngle) * 0.35, 8);
-  score -= clampPenalty((170 - rightKneeAngle) * 0.35, 8);
+  // Arms are best when wrists stay below the shoulders and near the hips/thighs.
+  const leftArmDownScore =
+    (leftWristBelowShoulder ? 0.4 : 0) +
+    (1 - clamp(leftWristNearHip / 1.15, 0, 1)) * 0.25 +
+    (1 - clamp(leftWristNearThigh / 1.3, 0, 1)) * 0.15 +
+    (1 - clamp(leftArmCloseToSide / 0.55, 0, 1)) * 0.1 +
+    toScore(leftArmAngle, 145, 178) * 0.1;
 
-  // A light centering rule helps keep the full body visible in frame.
-  score -= clampPenalty((bodyCenterOffset - 0.15) * 36, 10);
+  const rightArmDownScore =
+    (rightWristBelowShoulder ? 0.4 : 0) +
+    (1 - clamp(rightWristNearHip / 1.15, 0, 1)) * 0.25 +
+    (1 - clamp(rightWristNearThigh / 1.3, 0, 1)) * 0.15 +
+    (1 - clamp(rightArmCloseToSide / 0.55, 0, 1)) * 0.1 +
+    toScore(rightArmAngle, 145, 178) * 0.1;
+
+  let armPoints = ((leftArmDownScore + rightArmDownScore) / 2) * 25;
+
+  if (oneWristAboveShoulder) {
+    armPoints -= 10;
+  }
+
+  if (bothWristsAboveShoulders) {
+    armPoints -= 18;
+  }
+
+  armPoints = clamp(armPoints, 0, 25);
+
+  const visibilityPoints = (1 - clamp(bodyCenterOffset / 0.28, 0, 1)) * 10;
+
+  let score = torsoPoints + levelPoints + legPoints + armPoints + visibilityPoints;
+
+  // Strong anti-false-positive guard: both arms raised should not look like Mountain Pose.
+  if (bothWristsAboveShoulders) {
+    score = Math.min(score, 55);
+  }
+
+  score = Math.round(clamp(score, 0, 100));
+
+  const armsDownBySides =
+    leftWristBelowShoulder &&
+    rightWristBelowShoulder &&
+    leftArmCloseToSide < 0.42 &&
+    rightArmCloseToSide < 0.42;
 
   const feedbackMessages = [];
 
-  if (uprightOffset > 0.12) {
-    feedbackMessages.push('Stand straighter');
-  }
-
-  if (shoulderTilt > 0.06) {
-    feedbackMessages.push('Keep your shoulders level');
+  if (bothWristsAboveShoulders || oneWristAboveShoulder) {
+    feedbackMessages.push('Lower both arms by your sides');
   }
 
   if (
-    leftArmAngle < 165 ||
-    rightArmAngle < 165 ||
-    leftWristToHip < 0.9 ||
-    rightWristToHip < 0.9 ||
-    wristDrop < 1
+    !armsDownBySides ||
+    leftWristNearHip > 0.92 ||
+    rightWristNearHip > 0.92 ||
+    leftWristNearThigh > 1.1 ||
+    rightWristNearThigh > 1.1
   ) {
-    feedbackMessages.push('Keep both arms relaxed by your sides');
+    feedbackMessages.push('Keep your hands relaxed near your thighs');
   }
 
-  if (leftKneeAngle < 168 || rightKneeAngle < 168) {
-    feedbackMessages.push('Straighten your knees slightly');
+  if (torsoUpright > 0.11) {
+    feedbackMessages.push('Stand tall and keep your spine upright');
   }
 
-  if (bodyCenterOffset > 0.22) {
+  if (leftLegAngle < 166 || rightLegAngle < 166) {
+    feedbackMessages.push('Keep both legs straight and stable');
+  }
+
+  if (shoulderTilt > 0.06 || hipTilt > 0.07) {
+    feedbackMessages.push('Keep your shoulders level');
+  }
+
+  if (bodyCenterOffset > 0.23) {
     feedbackMessages.push('Stand centered in the camera frame');
   }
 
-  if (!feedbackMessages.length || score >= 88) {
-    feedbackMessages.unshift('Good alignment, hold steady');
+  if (score >= 88 && !bothWristsAboveShoulders) {
+    feedbackMessages.unshift('Good Mountain Pose, hold steady');
   }
 
   return {
-    score: Math.max(0, Math.min(100, Math.round(score))),
+    score,
     feedbackMessages: feedbackMessages.slice(0, 4),
     debug: {
-      uprightOffset: Number(uprightOffset.toFixed(2)),
+      leftWristY: Number(leftWrist.y.toFixed(3)),
+      rightWristY: Number(rightWrist.y.toFixed(3)),
+      leftShoulderY: Number(leftShoulder.y.toFixed(3)),
+      rightShoulderY: Number(rightShoulder.y.toFixed(3)),
+      armsRaised: bothWristsAboveShoulders || oneWristAboveShoulder,
+      armsDownBySides,
+      leftLegAngle: Number(leftLegAngle.toFixed(1)),
+      rightLegAngle: Number(rightLegAngle.toFixed(1)),
+      torsoUpright: Number(torsoUpright.toFixed(2)),
       shoulderTilt: Number(shoulderTilt.toFixed(2)),
-      leftArmAngle: Number(leftArmAngle.toFixed(1)),
-      rightArmAngle: Number(rightArmAngle.toFixed(1)),
-      leftKneeAngle: Number(leftKneeAngle.toFixed(1)),
-      rightKneeAngle: Number(rightKneeAngle.toFixed(1)),
-      centeredOffset: Number(bodyCenterOffset.toFixed(2)),
+      hipTilt: Number(hipTilt.toFixed(2)),
     },
   };
 }
