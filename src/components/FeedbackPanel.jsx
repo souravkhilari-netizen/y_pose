@@ -3,7 +3,6 @@ function FeedbackPanel({ poseName, className = '', evaluation }) {
     ? evaluation.messages.slice(0, 4)
     : ['Live feedback will appear here once evaluation is active.'];
   const isPositive = messages[0]?.toLowerCase().includes('good') || messages[0]?.toLowerCase().includes('nice');
-  const debugEntries = import.meta.env.DEV && evaluation?.debug ? Object.entries(evaluation.debug) : [];
   const isLowScore = typeof evaluation?.score === 'number' && evaluation.score < 60;
 
   return (
@@ -31,19 +30,6 @@ function FeedbackPanel({ poseName, className = '', evaluation }) {
           <li key={message}>{message}</li>
         ))}
       </ul>
-      {debugEntries.length ? (
-        <div className="debug-card">
-          <div className="debug-card__title">Debug Values</div>
-          <dl className="debug-grid">
-            {debugEntries.map(([label, value]) => (
-              <div key={label} className="debug-grid__item">
-                <dt>{label}</dt>
-                <dd>{String(value)}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-      ) : null}
     </section>
   );
 }
